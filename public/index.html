@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Javelin Throw Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <div id="lobby">
+        <h2>Game Lobby</h2>
+        <form id="join-form">
+            <input type="text" id="player-name" placeholder="Enter your name" required>
+            <button type="submit">Join Game</button>
+        </form>
+        <div id="player-list"></div>
+        <button id="start-game" style="display: none;">Start Game</button>
+    </div>
+    <div id="scoreboard"></div>
+    <div id="game-container" style="display: none;">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="info">Waiting for players...</div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
