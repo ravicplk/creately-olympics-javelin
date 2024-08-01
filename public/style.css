@@ -1,24 +1,79 @@
 body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    margin: 0;
-    font-family: 'Arial', sans-serif;
-    background-color: #f0f0f0;
+    min-height: 100vh;
+}
+
+#game-wrapper {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    padding: 20px;
+    max-width: 800px;
+    width: 100%;
+}
+
+h1, h2 {
+    color: #333;
+    text-align: center;
+}
+
+#lobby {
+    text-align: center;
+}
+
+#join-form {
+    margin-bottom: 20px;
+}
+
+input[type="text"] {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    width: 200px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+#player-list {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+#player-list div {
+    padding: 5px 0;
 }
 
 #game-container {
     text-align: center;
-    background-color: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
 canvas {
     border: 1px solid #ddd;
     border-radius: 5px;
+    max-width: 100%;
 }
 
 #info {
@@ -29,25 +84,123 @@ canvas {
 
 #scoreboard {
     margin-top: 20px;
-    font-family: Arial, sans-serif;
 }
 
 #scoreboard table {
     width: 100%;
     border-collapse: collapse;
+    margin-top: 10px;
 }
 
 #scoreboard th, #scoreboard td {
     border: 1px solid #ddd;
-    padding: 8px;
+    padding: 12px;
     text-align: left;
 }
 
 #scoreboard th {
-    background-color: #f2f2f2;
+    background-color: #4CAF50;
+    color: white;
     font-weight: bold;
 }
 
 #scoreboard tr:nth-child(even) {
-    background-color: #f9f9f9;
+    background-color: #f2f2f2;
+}
+
+#scoreboard tr:hover {
+    background-color: #ddd;
+}
+
+#leave-lobby {
+    background-color: #f44336;
+    margin-top: 20px;
+}
+
+#leave-lobby:hover {
+    background-color: #d32f2f;
+}
+#game-over {
+    text-align: center;
+    margin-top: 20px;
+}
+
+#winner-display {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #4CAF50;
+}
+
+#play-again, #go-to-lobby, #home {
+    margin: 10px;
+    padding: 12px 24px;
+    font-size: 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.1s;
+}
+
+#play-again {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+}
+
+#play-again:hover {
+    background-color: #45a049;
+    transform: scale(1.05);
+}
+
+#go-to-lobby {
+    background-color: #2196F3;
+    color: white;
+    border: none;
+}
+
+#go-to-lobby:hover {
+    background-color: #1e87db;
+    transform: scale(1.05);
+}
+
+#home {
+    background-color: #f44336;
+    color: white;
+    border: none;
+}
+
+#home:hover {
+    background-color: #d32f2f;
+    transform: scale(1.05);
+}
+
+/* ... (keep existing styles) ... */
+
+#exit-game, #exit-game-over {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.1s;
+    margin-top: 10px;
+}
+
+#exit-game:hover, #exit-game-over:hover {
+    background-color: #d32f2f;
+    transform: scale(1.05);
+}
+
+#game-over {
+    text-align: center;
+    margin-top: 20px;
+}
+
+#winner-display {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #4CAF50;
 }

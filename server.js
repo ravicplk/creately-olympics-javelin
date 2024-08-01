@@ -6,6 +6,7 @@ const io = require('socket.io')(http);
 app.use(express.static('public'));
 
 let lobbies = [];
+let playerSockets = new Map(); // To keep track of player sockets
 
 function createNewLobby() {
     return {
@@ -17,10 +18,21 @@ function createNewLobby() {
     };
 }
 
+function findPlayerLobby(playerId) {
+    return lobbies.find(lobby => lobby.players.some(player => player.id === playerId));
+}
+
 io.on('connection', (socket) => {
     console.log('A user connected');
 
     socket.on('join-game', (playerName) => {
+        // Check if player is already in a lobby
+        const existingLobby = findPlayerLobby(socket.id);
+        if (existingLobby) {
+            socket.emit('error', 'You are already in a lobby');
+            return;
+        }
+
         let lobby = lobbies.find(l => l.players.length < 5 && !l.gameInProgress);
         if (!lobby) {
             lobby = createNewLobby();
@@ -36,6 +48,8 @@ io.on('connection', (socket) => {
 
         lobby.players.push(player);
         socket.join(lobby.id);
+        playerSockets.set(socket.id, socket);
+
         socket.emit('lobby-joined', { lobbyId: lobby.id, players: lobby.players });
         io.to(lobby.id).emit('lobby-update', lobby.players);
 
@@ -46,7 +60,7 @@ io.on('connection', (socket) => {
 
     socket.on('start-game', (lobbyId) => {
         const lobby = lobbies.find(l => l.id === lobbyId);
-        if (lobby && lobby.players.length >= 2 && lobby.players[0].id === socket.id) {
+        if (lobby && lobby.players.length >= 2 && lobby.players[0].id === socket.id && !lobby.gameInProgress) {
             lobby.gameInProgress = true;
             lobby.currentRound = 1;
             lobby.currentPlayerIndex = 0;
@@ -54,29 +68,52 @@ io.on('connection', (socket) => {
             io.to(lobby.id).emit('gameStart', { 
                 currentPlayer: lobby.players[lobby.currentPlayerIndex].id 
             });
+        } else {
+            socket.emit('error', 'Unable to start the game');
         }
     });
 
     socket.on('throwJavelin', (data) => {
         const lobby = lobbies.find(l => l.id === data.lobbyId);
-        if (lobby) {
+        if (lobby && lobby.gameInProgress) {
             const playerIndex = lobby.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1 && playerIndex === lobby.currentPlayerIndex) {
                 lobby.players[playerIndex].score += data.distance;
                 nextTurn(lobby);
+            } else {
+                socket.emit('error', 'It\'s not your turn');
             }
+        } else {
+            socket.emit('error', 'Game not in progress');
         }
     });
 
+    socket.on('leave-lobby', () => {
+        handlePlayerLeave(socket);
+    });
+
     socket.on('disconnect', () => {
-        console.log('A user disconnected');
-        for (let lobby of lobbies) {
-            const playerIndex = lobby.players.findIndex(p => p.id === socket.id);
-            if (playerIndex !== -1) {
-                lobby.players.splice(playerIndex, 1);
-                if (lobby.players.length > 0 && playerIndex === 0) {
+        handlePlayerLeave(socket);
+    });
+});
+
+function handlePlayerLeave(socket) {
+    console.log('A user disconnected or left lobby');
+    const lobby = findPlayerLobby(socket.id);
+    if (lobby) {
+        const playerIndex = lobby.players.findIndex(p => p.id === socket.id);
+        if (playerIndex !== -1) {
+            lobby.players.splice(playerIndex, 1);
+            socket.leave(lobby.id);
+            playerSockets.delete(socket.id);
+
+            if (lobby.players.length > 0) {
+                if (playerIndex === 0) {
                     lobby.players[0].isHost = true;
-                    io.to(lobby.players[0].id).emit('host-assigned');
+                    const newHostSocket = playerSockets.get(lobby.players[0].id);
+                    if (newHostSocket) {
+                        newHostSocket.emit('host-assigned');
+                    }
                 }
                 io.to(lobby.id).emit('lobby-update', lobby.players);
                 if (lobby.gameInProgress && lobby.players.length < 2) {
@@ -84,12 +121,13 @@ io.on('connection', (socket) => {
                 } else if (lobby.gameInProgress) {
                     nextTurn(lobby);
                 }
+            } else {
+                // Remove empty lobby
+                lobbies = lobbies.filter(l => l.id !== lobby.id);
             }
         }
-        // Remove empty lobbies
-        lobbies = lobbies.filter(lobby => lobby.players.length > 0);
-    });
-});
+    }
+}
 
 function nextTurn(lobby) {
     lobby.currentPlayerIndex = (lobby.currentPlayerIndex + 1) % lobby.players.length;

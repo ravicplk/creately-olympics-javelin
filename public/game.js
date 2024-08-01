@@ -15,6 +15,14 @@ const playerNameInput = document.getElementById('player-name');
 const playerListDiv = document.getElementById('player-list');
 const startGameButton = document.getElementById('start-game');
 const scoreboardDiv = document.getElementById('scoreboard');
+const gameOverDiv = document.getElementById('game-over');
+const winnerDisplayDiv = document.getElementById('winner-display');
+// const playAgainButton = document.getElementById('play-again');
+const exitGameButton = document.getElementById('exit-game');
+const exitGameOverButton = document.getElementById('exit-game-over');
+const THROW_POWER_FACTOR = 0.8;
+const MIN_ANGLE = Math.PI / 6; // 30 degrees
+const MAX_ANGLE = Math.PI * 2 / 3; // 120 degrees
 
 let playerName;
 let players = [];
@@ -72,6 +80,11 @@ socket.on('lobby-update', (updatedPlayers) => {
     }
 });
 
+socket.on('error', (message) => {
+    console.error('Game error:', message);
+    alert(message);
+});
+
 socket.on('game-starting', () => {
     console.log('Game starting');
     lobbyDiv.style.display = 'none';
@@ -105,9 +118,12 @@ socket.on('nextTurn', ({ currentPlayer, scores, round }) => {
 socket.on('gameOver', ({ winner, scores }) => {
     console.log('Game over:', { winner, scores });
     isMyTurn = false;
-    updateInfoDiv(null, winner);
     updateScores(scores);
     drawGame();
+
+    gameContainer.style.display = 'none';
+    gameOverDiv.style.display = 'block';
+    winnerDisplayDiv.textContent = `${winner.name} wins!`;
 });
 
 function updatePlayerList() {
@@ -121,13 +137,12 @@ function updatePlayerList() {
 
 function initializeGame() {
     drawGame();
+    exitGameButton.style.display = 'block';
 }
 
-function updateInfoDiv(round = null, winner = null) {
+function updateInfoDiv(round = null) {
     infoDiv.textContent = '';
-    if (winner) {
-        infoDiv.textContent = `Game Over! ${winner.name} wins!`;
-    } else if (round) {
+    if (round) {
         infoDiv.textContent = `Round ${round}: ${isMyTurn ? 'Your turn' : "Opponent's turn"}`;
     } else {
         infoDiv.textContent = isMyTurn ? 'Your turn' : "Opponent's turn";
@@ -181,10 +196,15 @@ function drawStaticJavelin() {
 }
 
 function drawAimLine() {
+    const lineLength = 50; // Length of the aim line
+    const endLineX = startX + lineLength * Math.cos(angle);
+    const endLineY = startY - lineLength * Math.sin(angle);
+
     ctx.beginPath();
     ctx.moveTo(startX, startY);
-    ctx.lineTo(endX, endY);
+    ctx.lineTo(endLineX, endLineY);
     ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
     ctx.stroke();
 }
 
@@ -225,7 +245,6 @@ function drawAngleIndicator() {
     ctx.font = '12px Arial';
     ctx.fillText(`Angle: ${angleInDegrees}°`, centerX - 30, centerY + radius + 20);
 }
-
 function drawProjectedPath() {
     const steps = 20;
     const gravity = 9.81;
@@ -235,14 +254,19 @@ function drawProjectedPath() {
     ctx.setLineDash([5, 5]);
     ctx.moveTo(90, canvas.height - 150);
     
+    const velocityX = power * THROW_POWER_FACTOR * Math.cos(angle);
+    const velocityY = power * THROW_POWER_FACTOR * Math.sin(angle);
+
     for (let i = 0; i < steps; i++) {
         const t = i * timeStep;
-        const x = 90 + power * Math.cos(angle) * t;
-        const y = (canvas.height - 150) - (power * Math.sin(angle) * t - 0.5 * gravity * t * t);
+        const x = 90 + velocityX * t;
+        const y = (canvas.height - 150) - (velocityY * t - 0.5 * gravity * t * t);
         
-        ctx.lineTo(x, y);
-        
-        if (y > canvas.height - 50) break;
+        if (x <= canvas.width && y <= canvas.height - 50) {
+            ctx.lineTo(x, y);
+        } else {
+            break;
+        }
     }
     
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
@@ -262,14 +286,16 @@ function startDrag(event) {
 function drag(event) {
     if (!isMyTurn || !isDragging) return;
     const rect = canvas.getBoundingClientRect();
-    endX = event.clientX - rect.left;
-    endY = event.clientY - rect.top;
+    endX = Math.min(Math.max(event.clientX - rect.left, 0), canvas.width);
+    endY = Math.min(Math.max(event.clientY - rect.top, 0), canvas.height);
     
-    const dx = endX - startX;
-    const dy = startY - endY;
-    power = Math.min(Math.sqrt(dx * dx + dy * dy), maxPower);
-    angle = Math.atan2(dy, dx);
+    // Limit the drag to the left half of the canvas
+    endX = Math.min(endX, canvas.width / 2);
     
+    // Allow dragging below the start point, but limit it
+    endY = Math.min(endY, startY + 100); // Allow up to 100 pixels below start point
+    
+    calculateThrow();
     drawGame();
 }
 
@@ -285,9 +311,19 @@ function endDrag(event) {
 
 function calculateThrow() {
     const dx = endX - startX;
-    const dy = endY - startY;
+    const dy = startY - endY;
+    
+    // Calculate power based on drag distance
     power = Math.min(Math.sqrt(dx * dx + dy * dy), maxPower);
-    angle = Math.atan2(startY - endY, endX - startX);
+    
+    // Calculate raw angle
+    let rawAngle = Math.atan2(-dy, dx);
+    
+    // Map the raw angle to a range between MIN_ANGLE and MAX_ANGLE
+    angle = MIN_ANGLE + (rawAngle / (Math.PI / 2)) * (MAX_ANGLE - MIN_ANGLE);
+    
+    // Ensure the angle is within bounds
+    angle = Math.max(MIN_ANGLE, Math.min(angle, MAX_ANGLE));
 }
 
 function animateThrow() {
@@ -305,34 +341,36 @@ function animateThrow() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawGame();
 
-        x = 90 + power * Math.cos(angle) * t;
-        y = (canvas.height - 150) - (power * Math.sin(angle) * t - 0.5 * gravity * t * t);
+        const velocityX = power * THROW_POWER_FACTOR * Math.cos(angle);
+        const velocityY = power * THROW_POWER_FACTOR * Math.sin(angle);
 
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle - Math.PI / 2 + Math.atan2(gravity * t, power * Math.cos(angle)));
-        
-        ctx.fillStyle = "#8B4513";
-        ctx.fillRect(-2, -30, 4, 60);
-        
-        ctx.fillStyle = "#C0C0C0";
-        ctx.beginPath();
-        ctx.moveTo(0, 35);
-        ctx.lineTo(-5, 25);
-        ctx.lineTo(5, 25);
-        ctx.closePath();
-        ctx.fill();
-        
-        ctx.restore();
+        x = 90 + velocityX * t;
+        y = (canvas.height - 150) - (velocityY * t - 0.5 * gravity * t * t);
 
-        t += timeStep;
+        if (x <= canvas.width && y <= canvas.height - 50) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle - Math.PI / 2 + Math.atan2(gravity * t, velocityX));
+            
+            ctx.fillStyle = "#8B4513";
+            ctx.fillRect(-2, -30, 4, 60);
+            
+            ctx.fillStyle = "#C0C0C0";
+            ctx.beginPath();
+            ctx.moveTo(0, 35);
+            ctx.lineTo(-5, 25);
+            ctx.lineTo(5, 25);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
 
-        if (y < canvas.height - 50) {
+            t += timeStep;
             requestAnimationFrame(animate);
         } else {
             landSound.play();
 
-            const distance = Math.round(x - 90);
+            const distance = Math.round(Math.min(x - 90, canvas.width - 90));
             socket.emit('throwJavelin', { lobbyId, distance });
             infoDiv.textContent = `You threw the javelin ${distance} meters!`;
             isAnimatingThrow = false;
@@ -344,60 +382,109 @@ function animateThrow() {
 }
 
 function updateScores(scores) {
-  console.log('Raw scores data:', scores);
+    console.log('Raw scores data:', scores);
 
-  scoreboardDiv.innerHTML = '<h3>Scoreboard</h3>';
+    scoreboardDiv.innerHTML = '<h3>Scoreboard</h3>';
 
-  if (!Array.isArray(scores)) {
-      console.error('Scores is not an array:', scores);
-      scoreboardDiv.innerHTML += '<p>Error: Invalid score data</p>';
-      return;
-  }
+    if (!Array.isArray(scores)) {
+        console.error('Scores is not an array:', scores);
+        scoreboardDiv.innerHTML += '<p>Error: Invalid score data</p>';
+        return;
+    }
 
-  const table = document.createElement('table');
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
 
-  const headerRow = table.insertRow();
-  ['Rank', 'Player', 'Score'].forEach(text => {
-      const th = document.createElement('th');
-      th.textContent = text;
-      th.style.border = '1px solid black';
-      th.style.padding = '5px';
-      headerRow.appendChild(th);
-  });
+    const headerRow = table.insertRow();
+    ['Rank', 'Player', 'Score'].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        th.style.border = '1px solid black';
+        th.style.padding = '5px';
+        headerRow.appendChild(th);
+    });
 
-  const sortedScores = scores.sort((a, b) => {
-      const scoreA = typeof a.score === 'number' ? a.score : 0;
-      const scoreB = typeof b.score === 'number' ? b.score : 0;
-      return scoreB - scoreA;
-  });
+    const sortedScores = scores.sort((a, b) => {
+        const scoreA = typeof a.score === 'number' ? a.score : 0;
+        const scoreB = typeof b.score === 'number' ? b.score : 0;
+        return scoreB - scoreA;
+    });
 
-  sortedScores.forEach((score, index) => {
-      console.log('Processing score:', score);
-      const row = table.insertRow();
-      [
-          index + 1,
-          score.name || 'Unknown',
-          typeof score.score === 'number' ? score.score : 0
-      ].forEach((value, colIndex) => {
-          const cell = row.insertCell();
-          cell.textContent = value;
-          cell.style.border = '1px solid black';
-          cell.style.padding = '5px';
-          if (colIndex === 0) cell.style.textAlign = 'center';
-          if (colIndex === 2) cell.style.textAlign = 'right';
-      });
-  });
+    sortedScores.forEach((score, index) => {
+        console.log('Processing score:', score);
+        const row = table.insertRow();
+        [
+            index + 1,
+            score.name || 'Unknown',
+            typeof score.score === 'number' ? score.score : 0
+        ].forEach((value, colIndex) => {
+            const cell = row.insertCell();
+            cell.textContent = value;
+            cell.style.border = '1px solid black';
+            cell.style.padding = '5px';
+            if (colIndex === 0) cell.style.textAlign = 'center';
+            if (colIndex === 2) cell.style.textAlign = 'right';
+        });
+    });
 
-  scoreboardDiv.appendChild(table);
+    scoreboardDiv.appendChild(table);
 
-  const currentPlayerScore = scores.find(score => score.id === socket.id);
-  if (currentPlayerScore) {
-      const scoreValue = typeof currentPlayerScore.score === 'number' ? currentPlayerScore.score : 0;
-      infoDiv.textContent += ` Your score: ${scoreValue}`;
-  }
+    const currentPlayerScore = scores.find(score => score.id === socket.id);
+    if (currentPlayerScore) {
+        const scoreValue = typeof currentPlayerScore.score === 'number' ? currentPlayerScore.score : 0;
+        infoDiv.textContent += ` Your score: ${scoreValue}`;
+    }
 }
+
+function exitGame() {
+    gameContainer.style.display = 'none';
+    gameOverDiv.style.display = 'none';
+    lobbyDiv.style.display = 'block';
+    socket.emit('leave-lobby');
+    // Reset game state
+    players = [];
+    isHost = false;
+    updatePlayerList();
+}
+
+//playAgainButton.addEventListener('click', () => {
+    //ocket.emit('restart-game', lobbyId);
+//});
+
+//socket.on('game-restarted', () => {
+   //gameOverDiv.style.display = 'none';
+   // gameContainer.style.display = 'block';
+    //initializeGame();
+//});
+
+exitGameButton.addEventListener('click', exitGame);
+exitGameOverButton.addEventListener('click', exitGame);
+
+document.getElementById('leave-lobby').addEventListener('click', () => {
+    socket.emit('leave-lobby');
+    // Reset game state
+    players = [];
+    isHost = false;
+    lobbyId = null;
+    isMyTurn = false;
+    isDragging = false;
+    isAnimatingThrow = false;
+    power = 0;
+    angle = 0;
+    
+    // Reset UI
+    updatePlayerList();
+    startGameButton.style.display = 'none';
+    lobbyDiv.style.display = 'block';
+    gameContainer.style.display = 'none';
+    gameOverDiv.style.display = 'none';
+    scoreboardDiv.innerHTML = '';
+    infoDiv.textContent = 'Waiting for players...';
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
 
 canvas.addEventListener('mousedown', startDrag);
 canvas.addEventListener('mousemove', drag);
@@ -409,5 +496,19 @@ window.onload = function() {
         new Promise(resolve => { throwerImage.onload = resolve; })
     ]).then(() => {
         console.log('Images loaded');
+        drawGame();
     });
 };
+
+// Function to handle window resizing
+function handleResize() {
+    canvas.width = window.innerWidth * 0.8; // 80% of window width
+    canvas.height = window.innerHeight * 0.7; // 70% of window height
+    drawGame();
+}
+
+// Add event listener for window resize
+window.addEventListener('resize', handleResize);
+
+// Initial call to set canvas size
+handleResize();

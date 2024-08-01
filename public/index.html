@@ -7,21 +7,41 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    
-    <div id="lobby">
-        <h2>Game Lobby</h2>
-        <form id="join-form">
-            <input type="text" id="player-name" placeholder="Enter your name" required>
-            <button type="submit">Join Game</button>
-        </form>
-        <div id="player-list"></div>
-        <button id="start-game" style="display: none;">Start Game</button>
+    <div id="game-wrapper">
+        <div id="lobby">
+            <h1>Javelin Throw Game Lobby</h1>
+            <form id="join-form">
+                <input type="text" id="player-name" placeholder="Enter your name" required>
+                <button type="submit">Join Game</button>
+            </form>
+            <div id="player-list">
+                <h2>Players</h2>
+                <!-- Player list will be populated dynamically -->
+            </div>
+            <button id="start-game" style="display: none;">Start Game</button>
+            <button id="leave-lobby">Leave Lobby</button>
+        </div>
+
+        <div id="game-over" style="display: none;">
+            <h2>Game Over</h2>
+            <div id="winner-display"></div>
+            <button id="exit-game-over">Exit Game</button>
+
+        </div>
+
+        <div id="game-container" style="display: none;">
+            <canvas id="gameCanvas" width="800" height="400"></canvas>
+            <div id="info">Waiting for players...</div>
+            <button id="exit-game">Exit Game</button>
+
+        </div>
+
+        <div id="scoreboard">
+            <h2>Scoreboard</h2>
+            <!-- Scoreboard will be populated dynamically -->
+        </div>
     </div>
-    <div id="scoreboard"></div>
-    <div id="game-container" style="display: none;">
-        <canvas id="gameCanvas" width="800" height="400"></canvas>
-        <div id="info">Waiting for players...</div>
-    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="game.js"></script>
 </body>
